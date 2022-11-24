@@ -1,199 +1,53 @@
-import assert from 'assert'
 import * as ethers from 'ethers'
-import {EvmLog, EvmTransaction, Block, ChainContext, BlockContext, Chain, Result, rawMulticallAbi} from './support'
+import {LogEvent, Func, ContractBase} from './abi.support'
+import {ABI_JSON} from './factory.abi'
 
-export const rawAbi = [{"type":"event","anonymous":false,"name":"FeeAmountEnabled","inputs":[{"type":"uint24","name":"fee","indexed":true},{"type":"int24","name":"tickSpacing","indexed":true}]},{"type":"event","anonymous":false,"name":"OwnerChanged","inputs":[{"type":"address","name":"oldOwner","indexed":true},{"type":"address","name":"newOwner","indexed":true}]},{"type":"event","anonymous":false,"name":"PoolCreated","inputs":[{"type":"address","name":"token0","indexed":true},{"type":"address","name":"token1","indexed":true},{"type":"uint24","name":"fee","indexed":true},{"type":"int24","name":"tickSpacing","indexed":false},{"type":"address","name":"pool","indexed":false}]},{"type":"function","name":"createPool","constant":false,"payable":false,"inputs":[{"type":"address","name":"tokenA"},{"type":"address","name":"tokenB"},{"type":"uint24","name":"fee"}],"outputs":[{"type":"address","name":"pool"}]},{"type":"function","name":"enableFeeAmount","constant":false,"payable":false,"inputs":[{"type":"uint24","name":"fee"},{"type":"int24","name":"tickSpacing"}],"outputs":[]},{"type":"function","name":"feeAmountTickSpacing","constant":true,"stateMutability":"view","payable":false,"inputs":[{"type":"uint24","name":"fee"}],"outputs":[{"type":"int24"}]},{"type":"function","name":"getPool","constant":true,"stateMutability":"view","payable":false,"inputs":[{"type":"address","name":"tokenA"},{"type":"address","name":"tokenB"},{"type":"uint24","name":"fee"}],"outputs":[{"type":"address","name":"pool"}]},{"type":"function","name":"owner","constant":true,"stateMutability":"view","payable":false,"inputs":[],"outputs":[{"type":"address"}]},{"type":"function","name":"setOwner","constant":false,"payable":false,"inputs":[{"type":"address","name":"_owner"}],"outputs":[]}]
+export const abi = new ethers.utils.Interface(ABI_JSON);
 
-export const abi = new ethers.utils.Interface(rawAbi);
-export const multicallAbi = new ethers.utils.Interface(rawMulticallAbi);
-
-export type FeeAmountEnabled0Event = ([fee: number, tickSpacing: number] & {fee: number, tickSpacing: number})
-
-export type OwnerChanged0Event = ([oldOwner: string, newOwner: string] & {oldOwner: string, newOwner: string})
-
-export type PoolCreated0Event = ([token0: string, token1: string, fee: number, tickSpacing: number, pool: string] & {token0: string, token1: string, fee: number, tickSpacing: number, pool: string})
-
-class Events {
-  private readonly _abi = abi
-
-  'FeeAmountEnabled(uint24,int24)' = {
-    topic: this._abi.getEventTopic('FeeAmountEnabled(uint24,int24)'),
-    decode: (data: EvmLog): FeeAmountEnabled0Event => this._abi.decodeEventLog('FeeAmountEnabled(uint24,int24)', data.data, data.topics) as any
-  }
-
-  FeeAmountEnabled = this['FeeAmountEnabled(uint24,int24)']
-
-  'OwnerChanged(address,address)' = {
-    topic: this._abi.getEventTopic('OwnerChanged(address,address)'),
-    decode: (data: EvmLog): OwnerChanged0Event => this._abi.decodeEventLog('OwnerChanged(address,address)', data.data, data.topics) as any
-  }
-
-  OwnerChanged = this['OwnerChanged(address,address)']
-
-  'PoolCreated(address,address,uint24,int24,address)' = {
-    topic: this._abi.getEventTopic('PoolCreated(address,address,uint24,int24,address)'),
-    decode: (data: EvmLog): PoolCreated0Event => this._abi.decodeEventLog('PoolCreated(address,address,uint24,int24,address)', data.data, data.topics) as any
-  }
-
-  PoolCreated = this['PoolCreated(address,address,uint24,int24,address)']
+export const events = {
+    FeeAmountEnabled: new LogEvent<([fee: number, tickSpacing: number] & {fee: number, tickSpacing: number})>(
+        abi, '0xc66a3fdf07232cdd185febcc6579d408c241b47ae2f9907d84be655141eeaecc'
+    ),
+    OwnerChanged: new LogEvent<([oldOwner: string, newOwner: string] & {oldOwner: string, newOwner: string})>(
+        abi, '0xb532073b38c83145e3e5135377a08bf9aab55bc0fd7c1179cd4fb995d2a5159c'
+    ),
+    PoolCreated: new LogEvent<([token0: string, token1: string, fee: number, tickSpacing: number, pool: string] & {token0: string, token1: string, fee: number, tickSpacing: number, pool: string})>(
+        abi, '0x783cca1c0412dd0d695e784568c96da2e9c22ff989357a2e8b1d9b2b4e6b7118'
+    ),
 }
 
-export const events = new Events()
-
-export type CreatePool0Function = ([tokenA: string, tokenB: string, fee: number] & {tokenA: string, tokenB: string, fee: number})
-
-export type EnableFeeAmount0Function = ([fee: number, tickSpacing: number] & {fee: number, tickSpacing: number})
-
-export type SetOwner0Function = ([_owner: string] & {_owner: string})
-
-class Functions {
-  private readonly _abi = abi
-
-  'createPool(address,address,uint24)' = {
-    sighash: abi.getSighash('createPool(address,address,uint24)'),
-    decode: (data: EvmTransaction | string): CreatePool0Function => this._abi.decodeFunctionData('createPool(address,address,uint24)', typeof data === 'string' ? data : data.input) as any
-  }
-
-  createPool = this['createPool(address,address,uint24)']
-
-  'enableFeeAmount(uint24,int24)' = {
-    sighash: abi.getSighash('enableFeeAmount(uint24,int24)'),
-    decode: (data: EvmTransaction | string): EnableFeeAmount0Function => this._abi.decodeFunctionData('enableFeeAmount(uint24,int24)', typeof data === 'string' ? data : data.input) as any
-  }
-
-  enableFeeAmount = this['enableFeeAmount(uint24,int24)']
-
-  'setOwner(address)' = {
-    sighash: abi.getSighash('setOwner(address)'),
-    decode: (data: EvmTransaction | string): SetOwner0Function => this._abi.decodeFunctionData('setOwner(address)', typeof data === 'string' ? data : data.input) as any
-  }
-
-  setOwner = this['setOwner(address)']
+export const functions = {
+    createPool: new Func<[tokenA: string, tokenB: string, fee: number], {tokenA: string, tokenB: string, fee: number}, string>(
+        abi, '0xa1671295'
+    ),
+    enableFeeAmount: new Func<[fee: number, tickSpacing: number], {fee: number, tickSpacing: number}, []>(
+        abi, '0x8a7c195f'
+    ),
+    feeAmountTickSpacing: new Func<[fee: number], {fee: number}, number>(
+        abi, '0x22afcccb'
+    ),
+    getPool: new Func<[tokenA: string, tokenB: string, fee: number], {tokenA: string, tokenB: string, fee: number}, string>(
+        abi, '0x1698ee82'
+    ),
+    owner: new Func<[], {}, string>(
+        abi, '0x8da5cb5b'
+    ),
+    setOwner: new Func<[_owner: string], {_owner: string}, []>(
+        abi, '0x13af4035'
+    ),
 }
 
-export const functions = new Functions()
+export class Contract extends ContractBase {
 
-export class Contract {
-  private readonly _abi = abi
-  private readonly _chain: Chain
-  private readonly blockHeight: string
-  readonly address: string
-
-  constructor(ctx: BlockContext, address: string)
-  constructor(ctx: ChainContext, block: Block, address: string)
-  constructor(ctx: BlockContext, blockOrAddress: Block | string, address?: string) {
-    this._chain = ctx._chain
-    if (typeof blockOrAddress === 'string')  {
-      this.blockHeight = '0x' + ctx.block.height.toString(16)
-      this.address = ethers.utils.getAddress(blockOrAddress)
+    feeAmountTickSpacing(fee: number): Promise<number> {
+        return this.eth_call(functions.feeAmountTickSpacing, [fee])
     }
-    else  {
-      assert(address != null)
-      this.blockHeight = '0x' + blockOrAddress.height.toString(16)
-      this.address = ethers.utils.getAddress(address)
+
+    getPool(tokenA: string, tokenB: string, fee: number): Promise<string> {
+        return this.eth_call(functions.getPool, [tokenA, tokenB, fee])
     }
-  }
 
-  'feeAmountTickSpacing(uint24)' = {
-    call: (fee: number): Promise<number> => this.call('feeAmountTickSpacing(uint24)', [fee]),
-    tryCall: (fee: number): Promise<Result<number>> => this.tryCall('feeAmountTickSpacing(uint24)', [fee])
-  }
-
-  feeAmountTickSpacing = this['feeAmountTickSpacing(uint24)']
-
-  'getPool(address,address,uint24)' = {
-    call: (tokenA: string, tokenB: string, fee: number): Promise<string> => this.call('getPool(address,address,uint24)', [tokenA, tokenB, fee]),
-    tryCall: (tokenA: string, tokenB: string, fee: number): Promise<Result<string>> => this.tryCall('getPool(address,address,uint24)', [tokenA, tokenB, fee])
-  }
-
-  getPool = this['getPool(address,address,uint24)']
-
-  'owner()' = {
-    call: (): Promise<string> => this.call('owner()', []),
-    tryCall: (): Promise<Result<string>> => this.tryCall('owner()', [])
-  }
-
-  owner = this['owner()']
-
-  private async call(signature: string, args: any[]) : Promise<any> {
-    const data = this._abi.encodeFunctionData(signature, args)
-    const result = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const decoded = this._abi.decodeFunctionResult(signature, result)
-    return decoded.length > 1 ? decoded : decoded[0]
-  }
-
-  private async tryCall(signature: string, args: any[]) : Promise<Result<any>> {
-    return this.call(signature, args).then((r) => ({success: true, value: r})).catch(() => ({success: false}))
-  }
-}
-
-export class MulticallContract {
-  private readonly _abi = abi
-  private readonly _multicallAbi = multicallAbi
-  private readonly _chain: Chain
-  private readonly blockHeight: string
-  readonly address: string
-
-  constructor(ctx: BlockContext, multicallAddress: string)
-  constructor(ctx: ChainContext, block: Block, multicallAddress: string)
-  constructor(ctx: BlockContext, blockOrAddress: Block | string, address?: string) {
-    this._chain = ctx._chain
-    if (typeof blockOrAddress === 'string')  {
-      this.blockHeight = '0x' + ctx.block.height.toString(16)
-      this.address = ethers.utils.getAddress(blockOrAddress)
+    owner(): Promise<string> {
+        return this.eth_call(functions.owner, [])
     }
-    else  {
-      assert(address != null)
-      this.blockHeight = '0x' + blockOrAddress.height.toString(16)
-      this.address = ethers.utils.getAddress(address)
-    }
-  }
-
-  'feeAmountTickSpacing(uint24)' = {
-    call: (args: [string, [fee: number]][]): Promise<number[]> => this.call('feeAmountTickSpacing(uint24)', args),
-    tryCall: (args: [string, [fee: number]][]): Promise<Result<number>[]> => this.tryCall('feeAmountTickSpacing(uint24)', args)
-  }
-
-  feeAmountTickSpacing = this['feeAmountTickSpacing(uint24)']
-
-  'getPool(address,address,uint24)' = {
-    call: (args: [string, [tokenA: string, tokenB: string, fee: number]][]): Promise<string[]> => this.call('getPool(address,address,uint24)', args),
-    tryCall: (args: [string, [tokenA: string, tokenB: string, fee: number]][]): Promise<Result<string>[]> => this.tryCall('getPool(address,address,uint24)', args)
-  }
-
-  getPool = this['getPool(address,address,uint24)']
-
-  'owner()' = {
-    call: (args: string[]): Promise<string[]> => this.call('owner()', args.map((arg) => [arg, []])),
-    tryCall: (args: string[]): Promise<Result<string>[]> => this.tryCall('owner()', args.map((arg) => [arg, []]))
-  }
-
-  owner = this['owner()']
-
-  private async call(signature: string, args: [string, any[]][]) : Promise<any> {
-    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
-    const data = this._multicallAbi.encodeFunctionData('aggregate', [encodedArgs])
-    const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch: string[] = this._multicallAbi.decodeFunctionResult('aggregate', response).returnData
-    return batch.map((item) => {
-      const decodedItem = this._abi.decodeFunctionResult(signature, item)
-      return decodedItem.length > 1 ? decodedItem : decodedItem[0]
-    })
-  }
-
-  private async tryCall(signature: string, args: [string, any[]][]) : Promise<Result<any>[]> {
-    const encodedArgs = args.map((arg) => [arg[0], this._abi.encodeFunctionData(signature, arg[1])])
-    const data = this._multicallAbi.encodeFunctionData('tryAggregate', [false, encodedArgs])
-    const response = await this._chain.client.call('eth_call', [{to: this.address, data}, this.blockHeight])
-    const batch: {success: boolean, returnData: string}[] = this._multicallAbi.decodeFunctionResult('tryAggregate', response).returnData
-    return batch.map((item) => {
-      if (!item.success) return {success: false}
-      try {
-        const decodedItem = this._abi.decodeFunctionResult(signature, item.returnData)
-        return {success: true, value: decodedItem.length > 1 ? decodedItem : decodedItem[0]}
-      } catch {
-        return {success: false}
-      }
-    })
-  }
 }

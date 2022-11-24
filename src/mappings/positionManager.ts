@@ -1,20 +1,21 @@
+import {BigDecimal} from '@subsquid/big-decimal'
 import {
-    CommonHandlerContext,
     BatchBlock,
-    LogHandlerContext,
-    EvmBlock,
     BlockHandlerContext,
+    CommonHandlerContext,
+    EvmBlock,
+    LogHandlerContext,
 } from '@subsquid/evm-processor'
 import {LogItem, TransactionItem} from '@subsquid/evm-processor/lib/interfaces/dataSelection'
-import {Token, Position, Pool, PositionSnapshot} from '../model'
-import {BlockMap} from '../utils/blockMap'
-import {ADDRESS_ZERO, MULTICALL_ADDRESS, POSITIONS_ADDRESS, FACTORY_ADDRESS} from '../utils/constants'
-import * as positionsAbi from './../abi/NonfungiblePositionManager'
-import * as factoryAbi from './../abi/factory'
-import {BigDecimal} from '@subsquid/big-decimal'
 import {BigNumber} from 'ethers'
-import {last, processItem, splitIntoBatches} from '../utils/tools'
+import {Multicall} from "../abi/multicall"
+import {Position, PositionSnapshot, Token} from '../model'
+import {BlockMap} from '../utils/blockMap'
+import {ADDRESS_ZERO, FACTORY_ADDRESS, MULTICALL_ADDRESS, POSITIONS_ADDRESS} from '../utils/constants'
 import {EntityManager} from '../utils/entityManager'
+import {last, processItem} from '../utils/tools'
+import * as factoryAbi from './../abi/factory'
+import * as positionsAbi from './../abi/NonfungiblePositionManager'
 
 type EventData =
     | (TransferData & {type: 'Transfer'})
@@ -86,7 +87,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
     processItem(blocks, (block, item) => {
         if (item.kind !== 'evmLog') return
         switch (item.evmLog.topics[0]) {
-            case positionsAbi.events['IncreaseLiquidity(uint256,uint128,uint256,uint256)'].topic: {
+            case positionsAbi.events.IncreaseLiquidity.topic: {
                 const data = processInreaseLiquidity({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Increase',
@@ -94,7 +95,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
                 })
                 return
             }
-            case positionsAbi.events['DecreaseLiquidity(uint256,uint128,uint256,uint256)'].topic: {
+            case positionsAbi.events.DecreaseLiquidity.topic: {
                 const data = processDecreaseLiquidity({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Decrease',
@@ -102,7 +103,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
                 })
                 return
             }
-            case positionsAbi.events['Collect(uint256,address,uint256,uint256)'].topic: {
+            case positionsAbi.events.Collect.topic: {
                 const data = processCollect({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Collect',
@@ -110,7 +111,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
                 })
                 return
             }
-            case positionsAbi.events['Transfer(address,address,uint256)'].topic: {
+            case positionsAbi.events.Transfer.topic: {
                 const data = processTransafer({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Transfer',
@@ -233,30 +234,33 @@ function createPosition(positionId: string) {
 }
 
 async function initPositions(ctx: BlockHandlerContext<unknown>, ids: string[]) {
-    let contract = new positionsAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
+    const multicall = new Multicall(ctx, MULTICALL_ADDRESS)
 
-    const positionResults: any[] = []
-    for (let batch of splitIntoBatches(ids, 500)) {
-        const res = await contract.positions.tryCall(batch.map((id) => [POSITIONS_ADDRESS, [BigNumber.from(id)]]))
-        positionResults.push(...res)
-    }
+    const positionResults = await multicall.tryAggregate(
+        positionsAbi.functions.positions,
+        POSITIONS_ADDRESS,
+        ids.map(id => {
+            return [BigNumber.from(id)]
+        }),
+        500
+    )
 
     const positionsData: {positionId: string; token0Id: string; token1Id: string; fee: number}[] = []
     for (let i = 0; i < ids.length; i++) {
         const result = positionResults[i]
-        if (!result.success) continue
-        positionsData.push({
-            positionId: ids[i].toLowerCase(),
-            token0Id: result.value.token0.toLowerCase(),
-            token1Id: result.value.token1.toLowerCase(),
-            fee: result.value.fee,
-        })
+        if (result.success) {
+            positionsData.push({
+                positionId: ids[i].toLowerCase(),
+                token0Id: result.value.token0.toLowerCase(),
+                token1Id: result.value.token1.toLowerCase(),
+                fee: result.value.fee,
+            })
+        }
     }
 
-    let factoryContract = new factoryAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
-    const poolIds = await factoryContract.getPool.call(
-        positionsData.map((p) => [FACTORY_ADDRESS, [p.token0Id, p.token1Id, p.fee]])
-    )
+    const poolIds = await multicall.aggregate(factoryAbi.functions.getPool, FACTORY_ADDRESS, positionsData.map(p => {
+        return [p.token0Id, p.token1Id, p.fee]
+    }), 500)
 
     const positions: Position[] = []
     for (let i = 0; i < positionsData.length; i++) {
@@ -275,17 +279,22 @@ async function initPositions(ctx: BlockHandlerContext<unknown>, ids: string[]) {
 }
 
 async function updateFeeVars(ctx: BlockHandlerContext<unknown>, positions: Position[]) {
-    let positionManagerContract = new positionsAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
-    let positionResult = await positionManagerContract.positions.tryCall(
-        positions.map((p) => [POSITIONS_ADDRESS, [BigNumber.from(p.id)]])
+    const multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+
+    const positionResult = await multicall.tryAggregate(
+        positionsAbi.functions.positions,
+        POSITIONS_ADDRESS,
+        positions.map(p => {
+            return [BigNumber.from(p.id)]
+        })
     )
 
     for (let i = 0; i < positions.length; i++) {
         const result = positionResult[i]
-        if (!result.success) continue
-
-        positions[i].feeGrowthInside0LastX128 = result.value.feeGrowthInside0LastX128.toBigInt()
-        positions[i].feeGrowthInside1LastX128 = result.value.feeGrowthInside1LastX128.toBigInt()
+        if (result.success) {
+            positions[i].feeGrowthInside0LastX128 = result.value.feeGrowthInside0LastX128.toBigInt()
+            positions[i].feeGrowthInside1LastX128 = result.value.feeGrowthInside1LastX128.toBigInt()
+        }
     }
 }
 
@@ -301,7 +310,7 @@ interface IncreaseData {
 }
 
 function processInreaseLiquidity(ctx: LogHandlerContext<unknown, {evmLog: {topics: true; data: true}}>): IncreaseData {
-    const event = positionsAbi.events['IncreaseLiquidity(uint256,uint128,uint256,uint256)'].decode(ctx.evmLog)
+    const event = positionsAbi.events.IncreaseLiquidity.decode(ctx.evmLog)
 
     return {
         tokenId: event.tokenId.toString(),
@@ -319,7 +328,7 @@ interface DecreaseData {
 }
 
 function processDecreaseLiquidity(ctx: LogHandlerContext<unknown, {evmLog: {topics: true; data: true}}>): DecreaseData {
-    const event = positionsAbi.events['DecreaseLiquidity(uint256,uint128,uint256,uint256)'].decode(ctx.evmLog)
+    const event = positionsAbi.events.DecreaseLiquidity.decode(ctx.evmLog)
 
     return {
         tokenId: event.tokenId.toString(),
@@ -336,7 +345,7 @@ interface CollectData {
 }
 
 function processCollect(ctx: LogHandlerContext<unknown, {evmLog: {topics: true; data: true}}>): CollectData {
-    const event = positionsAbi.events['Collect(uint256,address,uint256,uint256)'].decode(ctx.evmLog)
+    const event = positionsAbi.events.Collect.decode(ctx.evmLog)
 
     return {
         tokenId: event.tokenId.toString(),
@@ -351,7 +360,7 @@ interface TransferData {
 }
 
 function processTransafer(ctx: LogHandlerContext<unknown, {evmLog: {topics: true; data: true}}>): TransferData {
-    const event = positionsAbi.events['Transfer(address,address,uint256)'].decode(ctx.evmLog)
+    const event = positionsAbi.events.Transfer.decode(ctx.evmLog)
 
     return {
         tokenId: event.tokenId.toString(),

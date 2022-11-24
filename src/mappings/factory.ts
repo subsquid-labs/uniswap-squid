@@ -1,14 +1,13 @@
 import {assertNotNull, BatchBlock, BlockHandlerContext, CommonHandlerContext} from '@subsquid/evm-processor'
-import {Factory, Bundle, Pool, Token} from '../model'
-import {FACTORY_ADDRESS, ADDRESS_ZERO} from '../utils/constants'
-import {WHITELIST_TOKENS} from '../utils/pricing'
-import {fetchTokensSymbol, fetchTokensName, fetchTokensTotalSupply, fetchTokensDecimals} from '../utils/token'
-import * as factoryAbi from '../abi/factory'
 import {LogItem, TransactionItem} from '@subsquid/evm-processor/lib/interfaces/dataSelection'
+import * as factoryAbi from '../abi/factory'
+import {Bundle, Factory, Pool, Token} from '../model'
 import {BlockMap} from '../utils/blockMap'
-import {last, processItem} from '../utils/tools'
-import {Store} from '@subsquid/typeorm-store'
+import {ADDRESS_ZERO, FACTORY_ADDRESS} from '../utils/constants'
 import {EntityManager} from '../utils/entityManager'
+import {WHITELIST_TOKENS} from '../utils/pricing'
+import {fetchTokensDecimals, fetchTokensName, fetchTokensSymbol, fetchTokensTotalSupply} from '../utils/token'
+import {last, processItem} from '../utils/tools'
 
 interface PairCreatedData {
     poolId: string
@@ -92,11 +91,11 @@ async function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlo
         if (
             item.address !== FACTORY_ADDRESS ||
             item.kind !== 'evmLog' ||
-            item.evmLog.topics[0] !== factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].topic
+            item.evmLog.topics[0] !== factoryAbi.events.PoolCreated.topic
         )
             return
 
-        const event = factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].decode(item.evmLog)
+        const event = factoryAbi.events.PoolCreated.decode(item.evmLog)
 
         // // temp fix (i don't know what is this)
         // if (event.pool.toLowerCase() == '0x8fe8d9bb8eeba3ed688069c3d6b556c9ca258248') return

@@ -7,51 +7,52 @@ import {
     EvmBlock,
     LogHandlerContext,
 } from '@subsquid/evm-processor'
+import {LogItem, TransactionItem} from '@subsquid/evm-processor/lib/interfaces/dataSelection'
 import {Store} from '@subsquid/typeorm-store'
+import {Multicall} from "../abi/multicall"
+import * as poolAbi from '../abi/pool'
 import {
-    Pool,
-    Token,
     Bundle,
+    Burn,
     Factory,
     Mint,
-    Tick,
-    Burn,
-    Swap,
-    Transaction,
-    UniswapDayData,
+    Pool,
     PoolDayData,
     PoolHourData,
-    TokenHourData,
-    TokenDayData,
+    Swap,
+    Tick,
     TickDayData,
+    Token,
+    TokenDayData,
+    TokenHourData,
+    Transaction,
+    UniswapDayData,
 } from '../model'
 import {safeDiv} from '../utils'
+import {BlockMap} from '../utils/blockMap'
 import {FACTORY_ADDRESS, MULTICALL_ADDRESS} from '../utils/constants'
+import {EntityManager} from '../utils/entityManager'
 import {
     createPoolDayData,
     createPoolHourData,
-    snapshotId,
     createTickDayData,
     createTokenDayData,
     createTokenHourData,
     createUniswapDayData,
     getDayIndex,
     getHourIndex,
+    snapshotId,
 } from '../utils/intervalUpdates'
 import {
     getTrackedAmountUSD,
+    MINIMUM_ETH_LOCKED,
     sqrtPriceX96ToTokenPrices,
+    STABLE_COINS,
     USDC_WETH_03_POOL,
     WETH_ADDRESS,
-    MINIMUM_ETH_LOCKED,
-    STABLE_COINS,
 } from '../utils/pricing'
 import {createTick, feeTierToTickSpacing} from '../utils/tick'
-import * as poolAbi from '../abi/pool'
-import {LogItem, TransactionItem} from '@subsquid/evm-processor/lib/interfaces/dataSelection'
-import {BlockMap} from '../utils/blockMap'
-import {last, processItem, splitIntoBatches} from '../utils/tools'
-import {EntityManager} from '../utils/entityManager'
+import {last, processItem} from '../utils/tools'
 
 type EventData =
     | (InitializeData & {type: 'Initialize'})
@@ -181,7 +182,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
     processItem(blocks, (block, item) => {
         if (item.kind !== 'evmLog') return
         switch (item.evmLog.topics[0]) {
-            case poolAbi.events['Initialize(uint160,int24)'].topic: {
+            case poolAbi.events.Initialize.topic: {
                 let data = processInitialize({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Initialize',
@@ -189,7 +190,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
                 })
                 return
             }
-            case poolAbi.events['Mint(address,address,int24,int24,uint128,uint256,uint256)'].topic: {
+            case poolAbi.events.Mint.topic: {
                 let data = processMint({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Mint',
@@ -197,7 +198,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
                 })
                 return
             }
-            case poolAbi.events['Burn(address,int24,int24,uint128,uint256,uint256)'].topic: {
+            case poolAbi.events.Burn.topic: {
                 let data = processBurn({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Burn',
@@ -205,7 +206,7 @@ function processItems(ctx: CommonHandlerContext<unknown>, blocks: BatchBlock<Ite
                 })
                 return
             }
-            case poolAbi.events['Swap(address,address,int256,int256,uint160,uint128,int24)'].topic: {
+            case poolAbi.events.Swap.topic: {
                 let data = processSwap({...ctx, block, ...item})
                 eventsData.push(block, {
                     type: 'Swap',
@@ -922,7 +923,7 @@ interface InitializeData {
 }
 
 function processInitialize(ctx: LogHandlerContext<unknown, {evmLog: {topics: true; data: true}}>): InitializeData {
-    let event = poolAbi.events['Initialize(uint160,int24)'].decode(ctx.evmLog)
+    let event = poolAbi.events.Initialize.decode(ctx.evmLog)
     return {
         poolId: ctx.evmLog.address,
         tick: event.tick,
@@ -949,7 +950,7 @@ function processMint(
         {evmLog: {topics: true; data: true}; transaction: {gasPrice: true; from: true; gas: true; hash: true}}
     >
 ): MintData {
-    let event = poolAbi.events['Mint(address,address,int24,int24,uint128,uint256,uint256)'].decode(ctx.evmLog)
+    let event = poolAbi.events.Mint.decode(ctx.evmLog)
     return {
         transaction: {
             hash: ctx.transaction.hash,
@@ -987,7 +988,7 @@ function processBurn(
         {evmLog: {topics: true; data: true}; transaction: {gasPrice: true; from: true; gas: true; hash: true}}
     >
 ): BurnData {
-    let event = poolAbi.events['Burn(address,int24,int24,uint128,uint256,uint256)'].decode(ctx.evmLog)
+    let event = poolAbi.events.Burn.decode(ctx.evmLog)
     return {
         transaction: {
             hash: ctx.transaction.hash,
@@ -1025,7 +1026,7 @@ function processSwap(
         {evmLog: {topics: true; data: true}; transaction: {gasPrice: true; from: true; gas: true; hash: true}}
     >
 ): SwapData {
-    let event = poolAbi.events['Swap(address,address,int256,int256,uint160,uint128,int24)'].decode(ctx.evmLog)
+    let event = poolAbi.events.Swap.decode(ctx.evmLog)
     return {
         transaction: {
             hash: ctx.transaction.hash,
@@ -1049,8 +1050,8 @@ export async function handleFlash(ctx: LogHandlerContext<Store>): Promise<void> 
     // update fee growth
     let pool = await ctx.store.get(Pool, ctx.evmLog.address).then(assertNotNull)
     let poolContract = new poolAbi.Contract(ctx, ctx.evmLog.address)
-    let feeGrowthGlobal0X128 = await poolContract.feeGrowthGlobal0X128.call()
-    let feeGrowthGlobal1X128 = await poolContract.feeGrowthGlobal1X128.call()
+    let feeGrowthGlobal0X128 = await poolContract.feeGrowthGlobal0X128()
+    let feeGrowthGlobal1X128 = await poolContract.feeGrowthGlobal1X128()
     pool.feeGrowthGlobal0X128 = feeGrowthGlobal0X128.toBigInt()
     pool.feeGrowthGlobal1X128 = feeGrowthGlobal1X128.toBigInt()
     await ctx.store.save(pool)
@@ -1058,13 +1059,15 @@ export async function handleFlash(ctx: LogHandlerContext<Store>): Promise<void> 
 
 async function updateTickFeeVars(ctx: BlockHandlerContext<unknown>, ticks: Tick[]): Promise<void> {
     // not all ticks are initialized so obtaining null is expected behavior
-    let poolContract = new poolAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
+    let multicall = new Multicall(ctx, MULTICALL_ADDRESS)
 
-    const tickResult: any[] = []
-    for (let batch of splitIntoBatches(ticks, 500)) {
-        const res = await poolContract.ticks.call(batch.map((t) => [t.poolId, [Number(t.tickIdx)]]))
-        tickResult.push(...res)
-    }
+    const tickResult = await multicall.aggregate(
+        poolAbi.functions.ticks,
+        ticks.map<[address: string, args: [idx: number]]>(t => {
+            return [t.poolId, [Number(t.tickIdx)]]
+        }),
+        500
+    )
 
     for (let i = 0; i < ticks.length; i++) {
         ticks[i].feeGrowthOutside0X128 = tickResult[i][1].toBigInt()
@@ -1073,9 +1076,15 @@ async function updateTickFeeVars(ctx: BlockHandlerContext<unknown>, ticks: Tick[
 }
 
 async function updatePoolFeeVars(ctx: BlockHandlerContext<unknown>, pools: Pool[]): Promise<void> {
-    let poolContract = new poolAbi.MulticallContract(ctx, MULTICALL_ADDRESS)
-    let fee0 = await poolContract.feeGrowthGlobal0X128.call(pools.map((p) => p.id))
-    let fee1 = await poolContract.feeGrowthGlobal1X128.call(pools.map((p) => p.id))
+    let multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+
+    let fee0 = await multicall.aggregate(poolAbi.functions.feeGrowthGlobal0X128, pools.map(p => {
+        return [p.id, []]
+    }))
+
+    let fee1 = await multicall.aggregate(poolAbi.functions.feeGrowthGlobal1X128, pools.map(p => {
+        return [p.id, []]
+    }))
 
     for (let i = 0; i < pools.length; i++) {
         pools[i].feeGrowthGlobal0X128 = fee0[i].toBigInt()

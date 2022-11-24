@@ -1,99 +1,90 @@
+import {BlockHandlerContext} from '@subsquid/evm-processor'
 import * as ERC20 from '../abi/ERC20'
-import * as ERC20SymbolBytes from '../abi/ERC20SymbolBytes'
 import * as ERC20NameBytes from '../abi/ERC20NameBytes'
-import {StaticTokenDefinition} from './staticTokenDefinition'
-import {BlockHandlerContext, decodeHex, LogHandlerContext} from '@subsquid/evm-processor'
+import * as ERC20SymbolBytes from '../abi/ERC20SymbolBytes'
+import {Multicall} from "../abi/multicall"
 import {MULTICALL_ADDRESS} from './constants'
+import {StaticTokenDefinition} from './staticTokenDefinition'
 import {removeNullBytes} from './tools'
 
 export async function fetchTokensSymbol(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    const result = new Map<string, string>()
+    const multicall = new Multicall(ctx, MULTICALL_ADDRESS)
 
-    // try types string and bytes32 for symbol
-    let contract = new ERC20.MulticallContract(ctx, MULTICALL_ADDRESS)
-    const addressesBytes: string[] = []
-    await contract.symbol.tryCall(tokenAddresses).then((batch) =>
-        batch.forEach((item, i) => {
-            if (item.success) {
-                result.set(tokenAddresses[i], removeNullBytes(item.value))
-            } else {
-                addressesBytes.push(tokenAddresses[i])
-            }
-        })
-    )
+    const symbols = new Map<string, string>()
 
-    let contractBytes = new ERC20SymbolBytes.MulticallContract(ctx, MULTICALL_ADDRESS)
-    const addressesStatic: string[] = []
-    await contractBytes.symbol.tryCall(addressesBytes).then((batch) =>
-        batch.forEach((item, i) => {
-            if (item.success) {
-                result.set(addressesBytes[i], removeNullBytes(item.value))
-            } else {
-                addressesStatic.push(addressesBytes[i])
-            }
-        })
-    )
+    const results = await multicall.tryAggregate(ERC20.functions.symbol, tokenAddresses.map(a => [a, []]))
 
-    for (const address of addressesStatic) {
-        const value = StaticTokenDefinition.fromAddress(address)?.symbol
-        if (value == null) ctx.log.warn(`Missing symbol for token ${address}`)
+    results.forEach((res, i) => {
+        const address = tokenAddresses[i]
+        let sym: string | undefined
+        if (res.success) {
+            sym = res.value
+        } else if (res.returnData) {
+            sym = ERC20SymbolBytes.functions.symbol.tryDecodeResult(res.returnData)
+        }
+        if (sym) {
+            symbols.set(address, removeNullBytes(sym))
+        } else {
+            const value = StaticTokenDefinition.fromAddress(address)?.symbol
+            if (value == null) ctx.log.warn(`Missing symbol for token ${address}`)
+            symbols.set(address, value || 'unknown')
+        }
+    })
 
-        result.set(address, value || 'unknown')
-    }
-
-    return result
+    return symbols
 }
 
 export async function fetchTokensName(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    const result = new Map<string, string>()
+    const multicall = new Multicall(ctx, MULTICALL_ADDRESS)
 
-    // try types string and bytes32 for name
-    let contract = new ERC20.MulticallContract(ctx, MULTICALL_ADDRESS)
-    const addressesBytes: string[] = []
-    await contract.name.tryCall(tokenAddresses).then((batch) =>
-        batch.forEach((item, i) => {
-            if (item.success) {
-                result.set(tokenAddresses[i], removeNullBytes(item.value))
-            } else {
-                addressesBytes.push(tokenAddresses[i])
-            }
-        })
-    )
+    const names = new Map<string, string>()
 
-    let contractBytes = new ERC20NameBytes.MulticallContract(ctx, MULTICALL_ADDRESS)
-    const addressesStatic: string[] = []
-    await contractBytes.name.tryCall(addressesBytes).then((batch) =>
-        batch.forEach((item, i) => {
-            if (item.success) {
-                result.set(addressesBytes[i], removeNullBytes(item.value))
-            } else {
-                addressesStatic.push(addressesBytes[i])
-            }
-        })
-    )
+    const results = await multicall.tryAggregate(ERC20.functions.name, tokenAddresses.map(a => [a, []]))
 
-    for (const address of addressesStatic) {
-        const value = StaticTokenDefinition.fromAddress(address)?.name
-        if (value == null) ctx.log.warn(`Missing name for token ${address}`)
+    results.forEach((res, i) => {
+        const address = tokenAddresses[i]
+        let name: string | undefined
+        if (res.success) {
+            name = res.value
+        } else if (res.returnData) {
+            name = ERC20NameBytes.functions.name.tryDecodeResult(res.returnData)
+        }
+        if (name) {
+            names.set(address, removeNullBytes(name))
+        } else {
+            const value = StaticTokenDefinition.fromAddress(address)?.name
+            if (value == null) ctx.log.warn(`Missing name for token ${address}`)
+            names.set(address, value || 'unknown')
+        }
+    })
 
-        result.set(address, value || 'unknown')
-    }
-
-    return result
+    return names
 }
 
 export async function fetchTokensTotalSupply(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    let contract = new ERC20.MulticallContract(ctx, MULTICALL_ADDRESS)
+    let multicall = new Multicall(ctx, MULTICALL_ADDRESS)
 
-    return contract.totalSupply
-        .tryCall(tokenAddresses)
-        .then((bns) => new Map(bns.map((bn, i) => [tokenAddresses[i], bn.success ? bn.value.toBigInt() : 0n])))
+    let results = await multicall.tryAggregate(ERC20.functions.totalSupply, tokenAddresses.map(a => [a, []]))
+
+    return new Map(
+        results.map((res, i) => {
+            let address = tokenAddresses[i]
+            let supply = res.success ? res.value.toBigInt() : 0n
+            return [address, supply]
+        })
+    )
 }
 
 export async function fetchTokensDecimals(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    let contract = new ERC20.MulticallContract(ctx, MULTICALL_ADDRESS)
-    // try types uint8 for decimals
-    return contract.decimals
-        .tryCall(tokenAddresses)
-        .then((ds) => new Map(ds.map((d, i) => [tokenAddresses[i], d.success ? d.value : 0])))
+    let multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+
+    let results = await multicall.tryAggregate(ERC20.functions.decimals, tokenAddresses.map(a => [a, []]))
+
+    return new Map(
+        results.map((res, i) => {
+            let address = tokenAddresses[i]
+            let decimals = res.success ? res.value : 0
+            return [address, decimals]
+        })
+    )
 }

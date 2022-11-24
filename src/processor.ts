@@ -34,7 +34,7 @@ let processor = new EvmBatchProcessor()
         chain: process.env.ETH_CHAIN_NODE,
     })
     .addLog(FACTORY_ADDRESS, {
-        filter: [[factoryAbi.events['PoolCreated(address,address,uint24,int24,address)'].topic]],
+        filter: [[factoryAbi.events.PoolCreated.topic]],
         data: {
             evmLog: {
                 topics: true,
@@ -45,10 +45,10 @@ let processor = new EvmBatchProcessor()
     .addLog([], {
         filter: [
             [
-                poolAbi.events['Burn(address,int24,int24,uint128,uint256,uint256)'].topic,
-                poolAbi.events['Mint(address,address,int24,int24,uint128,uint256,uint256)'].topic,
-                poolAbi.events['Initialize(uint160,int24)'].topic,
-                poolAbi.events['Swap(address,address,int256,int256,uint160,uint128,int24)'].topic,
+                poolAbi.events.Burn.topic,
+                poolAbi.events.Mint.topic,
+                poolAbi.events.Initialize.topic,
+                poolAbi.events.Swap.topic,
             ],
         ],
         data: {
@@ -67,10 +67,10 @@ let processor = new EvmBatchProcessor()
     .addLog(POSITIONS_ADDRESS, {
         filter: [
             [
-                positionsAbi.events['IncreaseLiquidity(uint256,uint128,uint256,uint256)'].topic,
-                positionsAbi.events['DecreaseLiquidity(uint256,uint128,uint256,uint256)'].topic,
-                positionsAbi.events['Collect(uint256,address,uint256,uint256)'].topic,
-                positionsAbi.events['Transfer(address,address,uint256)'].topic,
+                positionsAbi.events.IncreaseLiquidity.topic,
+                positionsAbi.events.DecreaseLiquidity.topic,
+                positionsAbi.events.Collect.topic,
+                positionsAbi.events.Transfer.topic,
             ],
         ],
         data: {
