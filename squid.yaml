@@ -1,0 +1,15 @@
+manifestVersion: subsquid.io/v0.1
+name: my-squid # set name
+version: 1 # version, must be an integer
+description: |-  # set description
+  My squid  
+
+build: 
+
+deploy:
+  addons:
+    postgres: 
+  processor:
+    cmd: [ "node", "lib/processor" ] 
+  api:
+    cmd: [ "npx", "squid-graphql-server"]

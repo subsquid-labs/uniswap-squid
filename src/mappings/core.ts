@@ -954,8 +954,8 @@ function processMint(
     return {
         transaction: {
             hash: ctx.transaction.hash,
-            gasPrice: ctx.transaction.gasPrice,
-            from: ctx.transaction.from,
+            gasPrice: ctx.transaction.gasPrice || 0n,
+            from: ctx.transaction.from!,
             gas: ctx.transaction.gas,
         },
         poolId: ctx.evmLog.address,
@@ -992,8 +992,8 @@ function processBurn(
     return {
         transaction: {
             hash: ctx.transaction.hash,
-            gasPrice: ctx.transaction.gasPrice,
-            from: ctx.transaction.from,
+            gasPrice: ctx.transaction.gasPrice || 0n,
+            from: ctx.transaction.from!,
             gas: ctx.transaction.gas,
         },
         poolId: ctx.evmLog.address,
@@ -1030,8 +1030,8 @@ function processSwap(
     return {
         transaction: {
             hash: ctx.transaction.hash,
-            gasPrice: ctx.transaction.gasPrice,
-            from: ctx.transaction.from,
+            gasPrice: ctx.transaction.gasPrice || 0n,
+            from: ctx.transaction.from!,
             gas: ctx.transaction.gas,
         },
         poolId: ctx.evmLog.address,
