@@ -35,3 +35,32 @@ export function bigDecimalExponated(value: number, power: number): number {
 
     return result
 }
+
+export class PoolsRegistry {
+    private static instance: PoolsRegistry
+
+    private contracts = new Set<string>()
+
+    private constructor() {}
+
+    static getRegistry(): PoolsRegistry {
+        if (this.instance == null) {
+            this.instance = new PoolsRegistry()
+        }
+
+        return this.instance
+    }
+
+    add(address: string) {
+        this.contracts.add(address)
+        return this
+    }
+
+    has(address: string) {
+        return this.contracts.has(address)
+    }
+
+    values(): string[] {
+        return [...this.contracts]
+    }
+}

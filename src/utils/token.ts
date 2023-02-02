@@ -1,18 +1,21 @@
-import {BlockHandlerContext} from '@subsquid/evm-processor'
+import {BlockHandlerContext, CommonHandlerContext, EvmBlock} from '@subsquid/evm-processor'
 import * as ERC20 from '../abi/ERC20'
 import * as ERC20NameBytes from '../abi/ERC20NameBytes'
 import * as ERC20SymbolBytes from '../abi/ERC20SymbolBytes'
-import {Multicall} from "../abi/multicall"
+import {Multicall} from '../abi/multicall'
 import {MULTICALL_ADDRESS} from './constants'
 import {StaticTokenDefinition} from './staticTokenDefinition'
 import {removeNullBytes} from './tools'
 
-export async function fetchTokensSymbol(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    const multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+export async function fetchTokensSymbol(ctx: CommonHandlerContext<unknown>, block: EvmBlock, tokenAddresses: string[]) {
+    const multicall = new Multicall(ctx, block, MULTICALL_ADDRESS)
 
     const symbols = new Map<string, string>()
 
-    const results = await multicall.tryAggregate(ERC20.functions.symbol, tokenAddresses.map(a => [a, []]))
+    const results = await multicall.tryAggregate(
+        ERC20.functions.symbol,
+        tokenAddresses.map((a) => [a, []])
+    )
 
     results.forEach((res, i) => {
         const address = tokenAddresses[i]
@@ -34,12 +37,15 @@ export async function fetchTokensSymbol(ctx: BlockHandlerContext<unknown>, token
     return symbols
 }
 
-export async function fetchTokensName(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    const multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+export async function fetchTokensName(ctx: CommonHandlerContext<unknown>, block: EvmBlock, tokenAddresses: string[]) {
+    const multicall = new Multicall(ctx, block, MULTICALL_ADDRESS)
 
     const names = new Map<string, string>()
 
-    const results = await multicall.tryAggregate(ERC20.functions.name, tokenAddresses.map(a => [a, []]))
+    const results = await multicall.tryAggregate(
+        ERC20.functions.name,
+        tokenAddresses.map((a) => [a, []])
+    )
 
     results.forEach((res, i) => {
         const address = tokenAddresses[i]
@@ -61,10 +67,17 @@ export async function fetchTokensName(ctx: BlockHandlerContext<unknown>, tokenAd
     return names
 }
 
-export async function fetchTokensTotalSupply(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    let multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+export async function fetchTokensTotalSupply(
+    ctx: CommonHandlerContext<unknown>,
+    block: EvmBlock,
+    tokenAddresses: string[]
+) {
+    let multicall = new Multicall(ctx, block, MULTICALL_ADDRESS)
 
-    let results = await multicall.tryAggregate(ERC20.functions.totalSupply, tokenAddresses.map(a => [a, []]))
+    let results = await multicall.tryAggregate(
+        ERC20.functions.totalSupply,
+        tokenAddresses.map((a) => [a, []])
+    )
 
     return new Map(
         results.map((res, i) => {
@@ -75,10 +88,17 @@ export async function fetchTokensTotalSupply(ctx: BlockHandlerContext<unknown>, 
     )
 }
 
-export async function fetchTokensDecimals(ctx: BlockHandlerContext<unknown>, tokenAddresses: string[]) {
-    let multicall = new Multicall(ctx, MULTICALL_ADDRESS)
+export async function fetchTokensDecimals(
+    ctx: CommonHandlerContext<unknown>,
+    block: EvmBlock,
+    tokenAddresses: string[]
+) {
+    let multicall = new Multicall(ctx, block, MULTICALL_ADDRESS)
 
-    let results = await multicall.tryAggregate(ERC20.functions.decimals, tokenAddresses.map(a => [a, []]))
+    let results = await multicall.tryAggregate(
+        ERC20.functions.decimals,
+        tokenAddresses.map((a) => [a, []])
+    )
 
     return new Map(
         results.map((res, i) => {

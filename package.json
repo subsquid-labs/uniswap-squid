@@ -11,9 +11,11 @@
     },
     "dependencies": {
         "@subsquid/big-decimal": "^0.0.0",
-        "@subsquid/duckdb-store": "^0.0.0",
-        "@subsquid/evm-processor": "^0.2.2",
+        "@subsquid/evm-processor": "^0.2.4",
         "@subsquid/evm-typegen": "2.0.2",
+        "@subsquid/file-store": "^0.0.0",
+        "@subsquid/file-store-parquet": "^0.1.0",
+        "@subsquid/file-store-s3": "^0.0.1",
         "dotenv": "^16.0.0",
         "ethers": "^5.6.4"
     },

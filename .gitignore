@@ -1,5 +1,6 @@
 /node_modules
 /lib
+/data
 
 /**Versions.json
 /**Versions.jsonl
@@ -8,3 +9,4 @@
 /.idea
 /.vscode
 /.envrc
+
